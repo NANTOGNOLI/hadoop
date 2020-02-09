@@ -24,6 +24,7 @@ import java.nio.file.AccessDeniedException;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.s3a.Retries;
+import org.apache.hadoop.fs.s3a.WriteOperationHelper;
 
 /**
  * An interface to implement for providing accessors to
@@ -81,4 +82,10 @@ public interface ContextAccessors {
    * @return possibly new path.
    */
   Path makeQualified(Path path);
+
+  /**
+   * Get a write operation helper.
+   * @return a write operation helper instance.
+   */
+  WriteOperationHelper getWriteOperationHelper();
 }

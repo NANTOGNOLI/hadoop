@@ -32,6 +32,7 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSBuilder;
+import org.apache.hadoop.service.ServiceStateException;
 
 /**
  * Support for future IO and the FS Builder subclasses.
@@ -151,6 +152,13 @@ public final class FutureIOSupport {
       return unwrapInnerException(cause);
     } else if (cause instanceof ExecutionException) {
       return unwrapInnerException(cause);
+    } else if (cause instanceof ServiceStateException) {
+      // Abstract Service Launch is usually a wrapper.
+      if (cause.getCause() != null)  {
+        return unwrapInnerException(cause.getCause());
+      } else {
+        throw (ServiceStateException) cause;
+      }
     } else if (cause instanceof RuntimeException) {
       throw (RuntimeException) cause;
     } else if (cause != null) {

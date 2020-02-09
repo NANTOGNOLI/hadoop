@@ -111,8 +111,12 @@ import org.apache.hadoop.fs.s3a.impl.InternalConstants;
 import org.apache.hadoop.fs.s3a.impl.ListingOperationCallbacks;
 import org.apache.hadoop.fs.s3a.impl.MultiObjectDeleteSupport;
 import org.apache.hadoop.fs.s3a.impl.OperationCallbacks;
+import org.apache.hadoop.fs.s3a.impl.RawS3A;
+import org.apache.hadoop.fs.s3a.impl.RawS3AImpl;
 import org.apache.hadoop.fs.s3a.impl.RenameOperation;
 import org.apache.hadoop.fs.s3a.impl.S3AMultipartUploaderBuilder;
+import org.apache.hadoop.fs.s3a.impl.S3AStore;
+import org.apache.hadoop.fs.s3a.impl.S3AStoreImpl;
 import org.apache.hadoop.fs.s3a.impl.StatusProbeEnum;
 import org.apache.hadoop.fs.s3a.impl.StoreContext;
 import org.apache.hadoop.fs.s3a.impl.StoreContextBuilder;
@@ -170,6 +174,7 @@ import org.apache.hadoop.util.SemaphoredDelegatingExecutor;
 import org.apache.hadoop.util.concurrent.HadoopExecutors;
 
 import static org.apache.hadoop.fs.impl.AbstractFSBuilderImpl.rejectUnknownMandatoryKeys;
+import static org.apache.hadoop.fs.impl.FutureIOSupport.awaitFuture;
 import static org.apache.hadoop.fs.impl.PathCapabilitiesSupport.validatePathCapabilityArgs;
 import static org.apache.hadoop.fs.s3a.Constants.*;
 import static org.apache.hadoop.fs.s3a.Invoker.*;
@@ -294,6 +299,21 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
   private int pageSize;
 
   /**
+   * S3A Store implementation.
+   */
+  private volatile S3AStore store;
+
+  /**
+   * Raw S3A APIs.
+   */
+  private volatile RawS3A rawS3A;
+
+  /**
+   * This is the future returned during async service launch.
+   */
+  CompletableFuture<Void> serviceLaunchFuture;
+
+  /**
    * Specific operations used by rename and delete operations.
    */
   private final S3AFileSystem.OperationCallbacksImpl
@@ -404,6 +424,11 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       signerManager = new SignerManager(bucket, this, conf, owner);
       signerManager.initCustomSigners();
 
+      // launch the services and store the relevant future.
+      serviceLaunchFuture = asyncLaunchStore();
+      // for now, we block until everything is live
+      store();
+
       // creates the AWS client, including overriding auth chain if
       // the FS came with a DT
       // this may do some patching of the configuration (e.g. setting
@@ -428,7 +453,7 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       LOG.debug("Filesystem support for magic committers {} enabled",
           magicCommitterEnabled ? "is" : "is not");
       committerIntegration = new MagicCommitIntegration(
-          this, magicCommitterEnabled);
+          createStoreContext(), magicCommitterEnabled);
 
       // instantiate S3 Select support
       selectBinding = new SelectBinding(writeHelper);
@@ -3437,11 +3462,15 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
         metadataStore,
         instrumentation,
         delegationTokens.orElse(null),
-        signerManager);
+        signerManager,
+        store,
+        rawS3A);
     closeAutocloseables(LOG, credentials);
     delegationTokens = Optional.empty();
     signerManager = null;
     credentials = null;
+    store = null;
+    rawS3A = null;
   }
 
   /**
@@ -4940,6 +4969,117 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
   }
 
   /**
+   * Override point for mocking: create the S3A Store.
+   * @return an instance of S3AStore
+   */
+  protected S3AStore createS3AStore() {
+    return new S3AStoreImpl();
+  }
+
+  /**
+   * Override point for mocking: create the S3A Store.
+   * @return an instance of S3AStore
+   */
+  protected RawS3A createRaw3AStore() {
+    return new RawS3AImpl();
+  }
+
+  /**
+   * Get the executor.
+   * @return the executore service.
+   */
+  private ListeningExecutorService executor() {
+    return boundedThreadPool;
+  }
+
+  /**
+   * Asynchronous future launch of stores layers.
+   * Once it completes, successfully, the fields
+   * {@code rawStore} and {@code store} are both
+   * set to their values.
+   * On failure: neither are set.
+   */
+  private CompletableFuture<Void> asyncLaunchStore() {
+    // instantiate and initiate the store services.
+    final Configuration conf = getConf();
+    // now asynchronously initialize
+
+    final ListeningExecutorService executor = executor();
+
+    final CompletableFuture<RawS3A> rawS3AFuture = submit(executor, () -> {
+      final RawS3A raw = createRaw3AStore();
+      raw.init(conf);
+      raw.setStoreContext(createStoreContext());
+      raw.bind(encryptionSecrets,
+          credentials,
+          signerManager,
+          transfers,
+          s3);
+      raw.start();
+      return raw;
+    });
+    final CompletableFuture<Void> launch  = rawS3AFuture
+        .thenApply(r -> {
+          rawS3A = r;
+          return r;
+        })
+        .thenApplyAsync((raw) -> {
+              final S3AStore s3AStore = createS3AStore();
+              s3AStore.init(conf);
+              s3AStore.setStoreContext(createStoreContext());
+              s3AStore.bind(
+                  raw,
+                  invoker,
+                  s3guardInvoker,
+                  unboundedThreadPool,
+                  directoryAllocator,
+                  metadataStore);
+
+              s3AStore.start();
+              return s3AStore;
+            },
+            executor)
+        .thenAccept(r -> store = r);
+    return serviceLaunchFuture;
+  }
+
+  /**
+   * Await for the launch sequence to complete.
+   * @throws IOException launch failure
+   */
+  private void awaitStoreLive() throws IOException {
+    // gets the store
+    awaitFuture(serviceLaunchFuture);
+  }
+
+  /**
+   * Get the store. This will block until the store is started,
+   * and will rethrow/wrap any failure.
+   * @return the store.
+   * @throws IOException launch failure
+   */
+  public S3AStore store() throws IOException {
+    if (store == null) {
+      awaitStoreLive();
+    }
+    return store;
+  }
+
+  /**
+   * Get the raw store.
+   * This will block until the store is started,
+   * and will rethrow/wrap any failure.
+   * @return the store.
+   * @throws IOException launch failure
+   */
+  public RawS3A rawS3A() throws IOException {
+    if (rawS3A == null) {
+      awaitStoreLive();
+    }
+    return rawS3A;
+  }
+
+  /**
    * The implementation of context accessors.
    */
   private class ContextAccessorsImpl implements ContextAccessors {
@@ -4970,5 +5110,8 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       return S3AFileSystem.this.makeQualified(path);
     }
 
+    public WriteOperationHelper getWriteOperationHelper() {
+      return S3AFileSystem.this.getWriteOperationHelper();
+    }
   }
 }

@@ -59,7 +59,7 @@ public final class FutureIOSupport {
     try {
       return future.get();
     } catch (InterruptedException e) {
-      throw (InterruptedIOException)new InterruptedIOException(e.toString())
+      throw (InterruptedIOException) new InterruptedIOException(e.toString())
           .initCause(e);
     } catch (ExecutionException e) {
       return raiseInnerCause(e);
@@ -87,7 +87,7 @@ public final class FutureIOSupport {
     try {
       return future.get(timeout, unit);
     } catch (InterruptedException e) {
-      throw (InterruptedIOException)new InterruptedIOException(e.toString())
+      throw (InterruptedIOException) new InterruptedIOException(e.toString())
           .initCause(e);
     } catch (ExecutionException e) {
       return raiseInnerCause(e);
@@ -154,7 +154,7 @@ public final class FutureIOSupport {
       return unwrapInnerException(cause);
     } else if (cause instanceof ServiceStateException) {
       // Abstract Service Launch is usually a wrapper.
-      if (cause.getCause() != null)  {
+      if (cause.getCause() != null) {
         return unwrapInnerException(cause.getCause());
       } else {
         throw (ServiceStateException) cause;
@@ -233,6 +233,57 @@ public final class FutureIOSupport {
       }
     }
   }
+
+  /**
+   * Given a future, evaluate it. Raised exceptions are
+   * extracted and handled.
+   * @param future future to evaluate
+   * @param <T> type of the result.
+   * @return the result, if all went well.
+   * @throws InterruptedIOException future was interrupted
+   * @throws IOException if something went wrong
+   * @throws RuntimeException any nested RTE thrown
+   */
+  public static <T> T awaitFutureQuietly(final Future<T> future)
+      throws RuntimeException {
+    try {
+      return future.get();
+    } catch (InterruptedException e) {
+      throw (RuntimeException) new RuntimeException(e.toString())
+          .initCause(e);
+    } catch (ExecutionException e) {
+      throw unwrapToRTE(e);
+    }
+  }
+
+  /**
+   * From the inner cause of an execution exception, extract the inner cause.
+   * If it is an RTE: throw immediately.
+   * If it is an IOE: Return.
+   * If it is a WrappedIOException: Unwrap and return
+   * Else: create a new IOException.
+   *
+   * Recursively handles wrapped Execution and Completion Exceptions in
+   * case something very complicated has happened.
+   * @param e exception.
+   * @return an IOException extracted or built from the cause.
+   * @throws RuntimeException if that is the inner cause.
+   */
+  private static RuntimeException unwrapToRTE(final Throwable e) {
+    Throwable cause = e.getCause();
+    if (cause instanceof CompletionException) {
+      return unwrapToRTE(cause);
+    } else if (cause instanceof ExecutionException) {
+      return unwrapToRTE(cause);
+    } else if (cause instanceof RuntimeException) {
+      throw (RuntimeException) cause;
+    } else if (cause instanceof IOException) {
+      return new WrappedIOException((IOException) cause);
+    } else {
+      return new ServiceStateException(cause);
+    }
+  }
+
 
   /**
    * Evaluate a CallableRaisingIOE in the current thread,

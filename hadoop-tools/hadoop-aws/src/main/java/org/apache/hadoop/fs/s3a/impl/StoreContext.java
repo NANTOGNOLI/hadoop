@@ -115,7 +115,12 @@ public class StoreContext {
   /**
    * Source of time.
    */
-  private ITtlTimeProvider timeProvider;
+  private final ITtlTimeProvider timeProvider;
+
+  /**
+   * Factory for AWS requests.
+   */
+  private final RequestFactory requestFactory;
 
   /**
    * Instantiate.
@@ -138,7 +143,8 @@ public class StoreContext {
       final MetadataStore metadataStore,
       final boolean useListV1,
       final ContextAccessors contextAccessors,
-      final ITtlTimeProvider timeProvider) {
+      final ITtlTimeProvider timeProvider,
+      final RequestFactory requestFactory) {
     this.fsURI = fsURI;
     this.bucket = bucket;
     this.configuration = configuration;
@@ -156,6 +162,7 @@ public class StoreContext {
     this.useListV1 = useListV1;
     this.contextAccessors = contextAccessors;
     this.timeProvider = timeProvider;
+    this.requestFactory = requestFactory;
   }
 
   @Override
@@ -209,6 +216,10 @@ public class StoreContext {
 
   public boolean isUseListV1() {
     return useListV1;
+  }
+
+  public RequestFactory getRequestFactory() {
+    return requestFactory;
   }
 
   public ContextAccessors getContextAccessors() {

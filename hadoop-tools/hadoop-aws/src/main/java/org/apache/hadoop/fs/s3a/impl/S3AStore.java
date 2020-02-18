@@ -19,11 +19,9 @@
 package org.apache.hadoop.fs.s3a.impl;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.s3a.Invoker;
-import org.apache.hadoop.fs.s3a.s3guard.MetadataStore;
 
 /**
  * The Guarded S3A Store.
@@ -33,10 +31,10 @@ import org.apache.hadoop.fs.s3a.s3guard.MetadataStore;
  */
 public interface S3AStore extends S3AService {
 
-  void bind(RawS3A rawS3A,
-      Invoker invoker,
+  void bind(
+      StoreContext storeContext,
+      RawS3A rawS3A,
       Invoker s3guardInvoker,
       ExecutorService unboundedThreadPool,
-      LocalDirAllocator directoryAllocator,
-      MetadataStore metadataStore);
+      LocalDirAllocator directoryAllocator);
 }

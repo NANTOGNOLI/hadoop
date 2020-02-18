@@ -33,8 +33,6 @@ public class S3AStoreImpl extends AbstractS3AService
 
   private RawS3A rawS3A;
 
-  private Invoker invoker;
-
   private Invoker s3guardInvoker;
 
   private ExecutorService unboundedThreadPool;
@@ -53,18 +51,17 @@ public class S3AStoreImpl extends AbstractS3AService
 
   @Override
   public void bind(
+      final StoreContext storeContext,
       final RawS3A rawS3A,
-      final Invoker invoker,
       final Invoker s3guardInvoker,
       final ExecutorService unboundedThreadPool,
-      final LocalDirAllocator directoryAllocator,
-      final MetadataStore metadataStore) {
+      final LocalDirAllocator directoryAllocator) {
 
+    super.bind(storeContext);
     this.rawS3A = rawS3A;
-    this.invoker = invoker;
     this.s3guardInvoker = s3guardInvoker;
     this.unboundedThreadPool = unboundedThreadPool;
     this.directoryAllocator = directoryAllocator;
-    this.metadataStore = metadataStore;
+    this.metadataStore = storeContext.getMetadataStore() ;
   }
 }

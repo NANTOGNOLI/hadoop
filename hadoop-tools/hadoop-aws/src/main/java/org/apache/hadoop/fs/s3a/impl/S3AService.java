@@ -22,12 +22,5 @@ import org.apache.hadoop.service.Service;
 
 public interface S3AService extends Service {
 
-  /**
-   * Bind to a store context.
-   * This MUST be called before start()
-   * @param storeContext context to bind to.
-   */
-  void setStoreContext(StoreContext storeContext);
-
   StoreContext getStoreContext();
 }

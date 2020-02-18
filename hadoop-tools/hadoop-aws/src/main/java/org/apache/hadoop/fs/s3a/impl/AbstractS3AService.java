@@ -20,6 +20,8 @@ package org.apache.hadoop.fs.s3a.impl;
 
 import java.util.Objects;
 
+import org.apache.hadoop.fs.s3a.Invoker;
+import org.apache.hadoop.fs.s3a.Statistic;
 import org.apache.hadoop.service.AbstractService;
 
 public abstract class AbstractS3AService
@@ -32,8 +34,7 @@ public abstract class AbstractS3AService
     super(name);
   }
 
-  @Override
-  public void setStoreContext(final StoreContext storeContext) {
+  protected void bind(final StoreContext storeContext) {
     this.storeContext = storeContext;
   }
 
@@ -51,5 +52,48 @@ public abstract class AbstractS3AService
   protected void serviceStart() throws Exception {
     Objects.requireNonNull(storeContext, () ->
         "not initialized with store context: " + getName());
+  }
+
+  /**
+   * Increment a statistic by 1.
+   * This increments both the instrumentation and storage statistics.
+   * @param statistic The operation to increment
+   */
+  protected void incrementStatistic(Statistic statistic) {
+    incrementStatistic(statistic, 1);
+  }
+
+  /**
+   * Increment a statistic by a specific value.
+   * This increments both the instrumentation and storage statistics.
+   * @param statistic The operation to increment
+   * @param count the count to increment
+   */
+  protected void incrementStatistic(Statistic statistic, long count) {
+    // todo
+  }
+
+  /**
+   * Increment read operations.
+   */
+  public void incrementReadOperations() {
+    // statistics.incrementReadOps(1);
+  }
+
+  /**
+   * Increment the write operation counter.
+   * This is somewhat inaccurate, as it appears to be invoked more
+   * often than needed in progress callbacks.
+   */
+  public void incrementWriteOperations() {
+//    statistics.incrementWriteOps(1);
+  }
+
+  protected String getBucket() {
+    return getStoreContext().getBucket();
+  }
+
+  protected Invoker getInvoker() {
+    return getStoreContext().getInvoker();
   }
 }

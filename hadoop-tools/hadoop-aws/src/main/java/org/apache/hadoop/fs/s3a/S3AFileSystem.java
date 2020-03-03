@@ -174,6 +174,7 @@ import static org.apache.hadoop.fs.s3a.Constants.*;
 import static org.apache.hadoop.fs.s3a.Invoker.*;
 import static org.apache.hadoop.fs.s3a.S3AUtils.*;
 import static org.apache.hadoop.fs.s3a.Statistic.*;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 import static org.apache.hadoop.fs.s3a.auth.RolePolicies.STATEMENT_ALLOW_SSE_KMS_RW;
 import static org.apache.hadoop.fs.s3a.auth.RolePolicies.allowS3Operations;
 import static org.apache.hadoop.fs.s3a.auth.delegation.S3ADelegationTokens.TokenIssuingPolicy.NoTokensAvailable;
@@ -3481,8 +3482,8 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
         action, srcKey,
         true,
         () -> {
-          CopyObjectRequest copyObjectRequest = requestFactory.newCopyObjectRequest(
-              srcKey, dstKey);
+          CopyObjectRequest copyObjectRequest =
+              requestFactory.newCopyObjectRequest(srcKey, dstKey);
           changeTracker.maybeApplyConstraint(copyObjectRequest);
 
           setOptionalCopyObjectRequestParameters(srcom, copyObjectRequest);

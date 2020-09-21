@@ -37,6 +37,7 @@ import org.apache.hadoop.fs.s3a.commit.CommitConstants;
 import org.apache.hadoop.fs.s3a.commit.CommitUtilsWithMR;
 import org.apache.hadoop.fs.s3a.commit.files.PendingSet;
 import org.apache.hadoop.fs.s3a.commit.files.SinglePendingCommit;
+import org.apache.hadoop.fs.statistics.IOStatisticsLogging;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
@@ -46,6 +47,7 @@ import static org.apache.hadoop.fs.s3a.S3AUtils.*;
 import static org.apache.hadoop.fs.s3a.commit.CommitUtils.*;
 import static org.apache.hadoop.fs.s3a.commit.MagicCommitPaths.*;
 import static org.apache.hadoop.fs.s3a.commit.CommitUtilsWithMR.*;
+import static org.apache.hadoop.fs.statistics.IOStatisticsLogging.demandStringifyIOStatistics;
 
 /**
  * This is a dedicated committer which requires the "magic" directory feature
@@ -177,6 +179,8 @@ public class MagicS3GuardCommitter extends AbstractS3ACommitter {
       destroyThreadPool();
     }
     getCommitOperations().taskCompleted(true);
+    LOG.debug("aggregate statistics\n{}",
+        demandStringifyIOStatistics(getIOStatistics()));
   }
 
   /**
@@ -220,6 +224,8 @@ public class MagicS3GuardCommitter extends AbstractS3ACommitter {
         taskAttemptID.getTaskID().toString() +
         CommitConstants.PENDINGSET_SUFFIX);
     LOG.info("Saving work of {} to {}", taskAttemptID, taskOutcomePath);
+    LOG.debug("task statistics\n{}",
+        IOStatisticsLogging.demandStringifyIOStatisticsSource(pendingSet));
     try {
       pendingSet.save(getDestFS(), taskOutcomePath, false);
     } catch (IOException e) {

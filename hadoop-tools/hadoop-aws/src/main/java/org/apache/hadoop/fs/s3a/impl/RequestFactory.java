@@ -35,12 +35,13 @@ import com.amazonaws.services.s3.model.SSECustomerKey;
 import com.amazonaws.services.s3.model.SelectObjectContentRequest;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 
+import org.apache.hadoop.fs.PathIOException;
 import org.apache.hadoop.fs.s3a.S3AEncryptionMethods;
 import org.apache.hadoop.fs.s3a.auth.delegation.EncryptionSecrets;
 
 public interface RequestFactory {
 
-  abstract void bind(EncryptionSecrets encryptionSecrets);
+  void setEncryptionSecrets(EncryptionSecrets encryptionSecrets);
 
   /**
    * Get the canned ACL of this FS.
@@ -53,7 +54,7 @@ public interface RequestFactory {
    * if the encryption secrets contain the information/settings for this.
    * @return an optional set of KMS Key settings
    */
-  abstract Optional<SSEAwsKeyManagementParams> generateSSEAwsKeyParams();
+  Optional<SSEAwsKeyManagementParams> generateSSEAwsKeyParams();
 
   /**
    * Create the SSE-C structure for the AWS SDK, if the encryption secrets
@@ -61,13 +62,13 @@ public interface RequestFactory {
    * This will contain a secret extracted from the bucket/configuration.
    * @return an optional customer key.
    */
-  abstract Optional<SSECustomerKey> generateSSECustomerKey();
+  Optional<SSECustomerKey> generateSSECustomerKey();
 
   /**
    * Get the encryption algorithm of this endpoint.
    * @return the encryption algorithm.
    */
-  abstract S3AEncryptionMethods getServerSideEncryptionAlgorithm();
+  S3AEncryptionMethods getServerSideEncryptionAlgorithm();
 
   /**
    * Sets server side encryption parameters to the part upload
@@ -103,9 +104,9 @@ public interface RequestFactory {
    * @param length length of data to set in header; Ignored if negative
    * @return a new metadata instance
    */
-  abstract ObjectMetadata newObjectMetadata(long length);
+  ObjectMetadata newObjectMetadata(long length);
 
-  abstract CopyObjectRequest newCopyObjectRequest(String srcKey,
+  CopyObjectRequest newCopyObjectRequest(String srcKey,
       String dstKey);
 
   /**
@@ -116,7 +117,7 @@ public interface RequestFactory {
    * @param srcfile source file
    * @return the request
    */
-  abstract PutObjectRequest newPutObjectRequest(String key,
+  PutObjectRequest newPutObjectRequest(String key,
       ObjectMetadata metadata, File srcfile);
 
   /**
@@ -128,11 +129,11 @@ public interface RequestFactory {
    * @param inputStream source data.
    * @return the request
    */
-  abstract PutObjectRequest newPutObjectRequest(String key,
+  PutObjectRequest newPutObjectRequest(String key,
       ObjectMetadata metadata,
       InputStream inputStream);
 
-  abstract ListMultipartUploadsRequest newListMultipartUploadsRequest(String prefix);
+  ListMultipartUploadsRequest newListMultipartUploadsRequest(String prefix);
 
   AbortMultipartUploadRequest newAbortMultipartUploadRequest(String destKey,
       String uploadId);
@@ -164,7 +165,7 @@ public interface RequestFactory {
       int size,
       InputStream uploadStream,
       File sourceFile,
-      long offset);
+      long offset) throws PathIOException;
 
   /**
    * Create a S3 Select request for the destination object.

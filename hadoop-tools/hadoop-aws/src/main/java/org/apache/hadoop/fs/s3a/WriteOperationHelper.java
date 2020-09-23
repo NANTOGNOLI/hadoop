@@ -409,15 +409,7 @@ public class WriteOperationHelper implements WriteOperations {
       File sourceFile,
       Long offset) throws PathIOException {
     checkNotNull(uploadId);
-    // exactly one source must be set; xor verifies this
-    checkArgument((uploadStream != null) ^ (sourceFile != null),
-        "Data source");
-    checkArgument(size >= 0, "Invalid partition size %s", size);
-    checkArgument(partNumber > 0 && partNumber <= 10000,
-        "partNumber must be between 1 and 10000 inclusive, but is %s",
-        partNumber);
 
-    // TODO: make sure all checks on part count limit are in
     return context.getRequestFactory().newUploadPartRequest(destKey, uploadId, partNumber, size, uploadStream, sourceFile, offset);
   }
 

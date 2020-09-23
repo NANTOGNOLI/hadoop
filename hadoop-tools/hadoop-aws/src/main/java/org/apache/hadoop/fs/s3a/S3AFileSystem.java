@@ -3578,11 +3578,6 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
     return getAmazonS3Client().initiateMultipartUpload(request);
   }
 
-  private void setOptionalPutRequestParameters(PutObjectRequest request) {
-    generateSSEAwsKeyParams().ifPresent(request::setSSEAwsKeyManagementParams);
-    generateSSECustomerKey().ifPresent(request::setSSECustomerKey);
-  }
-
   private void setOptionalObjectMetadata(ObjectMetadata metadata) {
     requestFactory.setOptionalObjectMetadata(metadata);
   }
@@ -4735,7 +4730,7 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
         .setUseListV1(useListV1)
         .setContextAccessors(new ContextAccessorsImpl())
         .setTimeProvider(getTtlTimeProvider())
-            // TODO:         requestFactory);
+        .setRequestFactory(requestFactory)
         .build();
   }
 

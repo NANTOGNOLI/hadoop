@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.PathIOException;
 import org.apache.hadoop.fs.s3a.S3AEncryptionMethods;
 import org.apache.hadoop.fs.s3a.auth.delegation.EncryptionSecretOperations;
 import org.apache.hadoop.fs.s3a.auth.delegation.EncryptionSecrets;
@@ -48,11 +49,14 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 import static org.apache.hadoop.fs.s3a.Constants.CANNED_ACL;
 import static org.apache.hadoop.fs.s3a.Constants.DEFAULT_CANNED_ACL;
+import static org.apache.hadoop.fs.s3a.S3AUtils.longOption;
+import static org.apache.hadoop.fs.s3a.impl.InternalConstants.DEFAULT_UPLOAD_PART_COUNT_LIMIT;
+import static org.apache.hadoop.fs.s3a.impl.InternalConstants.UPLOAD_PART_COUNT_LIMIT;
 
 /**
  * The (sole) implementation of the request factory.
- * This creates AWS SDK request classes for the specific bucket, with
- * the encryption settings passed in. gb
+ * This creates AWS SDK request classes for the specific bucket,
+ * with standard options/headers set.
  */
 public class RequestFactoryImpl implements RequestFactory {
 
@@ -60,7 +64,6 @@ public class RequestFactoryImpl implements RequestFactory {
       RequestFactoryImpl.class);
 
   private final CannedAccessControlList cannedACL;
-
 
   private final Configuration conf;
 
@@ -84,7 +87,7 @@ public class RequestFactoryImpl implements RequestFactory {
   }
 
   @Override
-  public void bind(final EncryptionSecrets encryptionSecrets) {
+  public void setEncryptionSecrets(final EncryptionSecrets encryptionSecrets) {
 
   }
 
@@ -325,18 +328,32 @@ public class RequestFactoryImpl implements RequestFactory {
       int size,
       InputStream uploadStream,
       File sourceFile,
-      long offset) {
+      long offset) throws PathIOException {
     checkNotNull(uploadId);
     // exactly one source must be set; xor verifies this
     checkArgument((uploadStream != null) ^ (sourceFile != null),
         "Data source");
     checkArgument(size >= 0, "Invalid partition size %s", size);
-    checkArgument(partNumber > 0 && partNumber <= 10000,
-        "partNumber must be between 1 and 10000 inclusive, but is %s",
-        partNumber);
+    checkArgument(partNumber > 0,
+        "partNumber must be between 1 and %s inclusive, but is %s",
+        DEFAULT_UPLOAD_PART_COUNT_LIMIT, partNumber);
 
     LOG.debug("Creating part upload request for {} #{} size {}",
         uploadId, partNumber, size);
+    long partCountLimit = longOption(conf,
+        UPLOAD_PART_COUNT_LIMIT,
+        DEFAULT_UPLOAD_PART_COUNT_LIMIT,
+        1);
+    if (partCountLimit != DEFAULT_UPLOAD_PART_COUNT_LIMIT) {
+      LOG.warn("Configuration property {} shouldn't be overridden by client",
+          UPLOAD_PART_COUNT_LIMIT);
+    }
+    final String pathErrorMsg = "Number of parts in multipart upload exceeded."
+        + " Current part count = %s, Part count limit = %s ";
+    if (partNumber > partCountLimit) {
+      throw new PathIOException(destKey,
+          String.format(pathErrorMsg, partNumber, partCountLimit));
+    }
     UploadPartRequest request = new UploadPartRequest()
         .withBucketName(getBucket())
         .withKey(destKey)

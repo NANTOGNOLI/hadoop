@@ -18,15 +18,10 @@
 
 package org.apache.hadoop.fs.s3a.impl;
 
-import java.util.concurrent.CompletableFuture;
-
-import org.apache.hadoop.service.Service;
-
 /**
  * Anything needed for service integration
  */
 public class ServiceIntegration {
-
 
 
 }
